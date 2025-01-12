@@ -8,11 +8,16 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 from collection_item import CollectionItem
+import os
+from PIL import Image, ImageTk
+import textwrap
 
 class CollectionApp:
     def __init__(self, root, tracker):
         self.root = root
         self.root.title("Collection Tracker")
+        self.root.attributes("-fullscreen", True)  # Enable full-screen mode
+        self.root.bind("<Escape>", lambda e: self.root.attributes("-fullscreen", False))  # Exit full-screen with Escape key
         self.tracker = tracker
 
         self.notebook = ttk.Notebook(root)
@@ -31,13 +36,82 @@ class CollectionApp:
         self.create_sell_tab()
 
     def create_inventory_tab(self):
-        self.inventory_tree = ttk.Treeview(self.inventory_tab, columns=("Name", "Category", "Quantity", "Price", "Image Path", "Year", "Location"), show='headings')
-        for col in self.inventory_tree["columns"]:
-            self.inventory_tree.heading(col, text=col)
-        self.inventory_tree.pack(fill=tk.BOTH, expand=True)
+        # Create a canvas to display items
+        self.inventory_canvas = tk.Canvas(self.inventory_tab, bg="white")
+        self.inventory_canvas.pack(fill=tk.BOTH, expand=True)
 
-        self.load_inventory()
+        # Add a scrollbar for the canvas
+        self.inventory_scrollbar = ttk.Scrollbar(self.inventory_tab, orient=tk.VERTICAL, command=self.inventory_canvas.yview)
+        self.inventory_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.inventory_canvas.configure(yscrollcommand=self.inventory_scrollbar.set)
 
+        # Create a frame inside the canvas to hold the items
+        self.inventory_frame = ttk.Frame(self.inventory_canvas)
+        self.inventory_frame_id = self.inventory_canvas.create_window((0, 0), window=self.inventory_frame, anchor="nw")
+
+        # Configure dynamic scrolling for the frame
+        self.inventory_frame.bind("<Configure>", self._on_frame_configure)
+        self.inventory_canvas.bind("<Configure>", self._on_canvas_resize)
+    
+        # Cache for loaded images
+        self.image_cache = {}
+
+        # Load and display inventory items inside the canvas (with scrollbar applied)
+        self.load_inventory_with_images()
+
+        # Create a separate frame for the form outside the canvas to prevent it from being affected by the scroll
+        self.inventory_form_frame = ttk.Frame(self.inventory_tab)
+        self.inventory_form_frame.pack(fill=tk.X, side=tk.BOTTOM)
+
+        # Load the add or update inventory form
+        self.add_update_inventory_form()
+        
+    def _on_frame_configure(self, event=None):
+        """
+        Adjust the canvas scroll region to match the size of the frame.
+        """
+        self.inventory_canvas.configure(scrollregion=self.inventory_canvas.bbox("all"))
+
+    def _on_canvas_resize(self, event=None):
+        """
+        Ensure the frame width matches the canvas width.
+        """
+        canvas_width = event.width
+        self.inventory_canvas.itemconfig(self.inventory_frame_id, width=canvas_width)
+
+    def load_inventory_with_images(self):
+        for widget in self.inventory_frame.winfo_children():
+            widget.destroy()  # Clear existing items in the inventory display
+
+        items = self.tracker.get_inventory()
+        for index, item in enumerate(items):
+            # Create a frame for each item
+            item_frame = ttk.Frame(self.inventory_frame, borderwidth=2, relief=tk.GROOVE, padding=(9, 9))
+            item_frame.grid(row=index // 13, column=index % 13, padx=9, pady=9)
+
+            # Load image
+            if item.image_path and os.path.exists(item.image_path):
+                img = Image.open(item.image_path).resize((90, 90), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                self.image_cache[item.image_path] = photo  # Store reference to prevent garbage collection
+                img_label = tk.Label(item_frame, image=photo)
+                img_label.pack()
+            else:
+                # Placeholder image
+                placeholder = Image.new("RGB", (90, 90), color="gray")
+                photo = ImageTk.PhotoImage(placeholder)
+                self.image_cache[f"placeholder_{index}"] = photo
+                img_label = tk.Label(item_frame, image=photo)
+                img_label.pack()
+
+            # Display name and year
+            #tk.Label(item_frame, text=item.name, font=("Arial", 10, "bold")).pack()
+            wrapped_text = "\n".join(textwrap.wrap(item.name, width=15))  # Adjust width as needed
+            tk.Label(item_frame, text=wrapped_text, font=("Arial", 10, "bold"), justify=tk.CENTER).pack()
+            tk.Label(item_frame, text=f"Year: {item.year}", font=("Arial", 10)).pack()
+    
+    def add_update_inventory_form(self):
+        # Form for adding or updating inventory items
         self.inventory_form = ttk.Frame(self.inventory_tab)
         self.inventory_form.pack(fill=tk.X)
 
@@ -72,6 +146,7 @@ class CollectionApp:
         ttk.Button(self.inventory_form, text="Add Item", command=self.add_inventory_item).pack(side=tk.LEFT)
         ttk.Button(self.inventory_form, text="Remove Item", command=self.remove_inventory_item).pack(side=tk.LEFT)
         ttk.Button(self.inventory_form, text="Update Item", command=self.update_inventory_item).pack(side=tk.LEFT)
+
 
     def create_wanted_tab(self):
         self.wanted_tree = ttk.Treeview(self.wanted_tab, columns=("Name", "Category", "Quantity", "Price", "Image Path", "Year", "Location"), show='headings')
@@ -169,7 +244,7 @@ class CollectionApp:
 
     def load_wanted_items(self):
         for item in self.tracker.get_wanted_items():
-            self.wanted_tree.insert('', 'end', values=(item.name, item.category, item.quantity, item.price, item.image_path, item.year, item.location))
+            self.wanted_tree.insert('', 'end', values=(item.name, item.category, item.quantity, item.price, item.image_path, item.year))
 
     def load_sell_items(self):
         for item, threshold in self.tracker.get_sell_items():
@@ -218,7 +293,7 @@ class CollectionApp:
             location=self.wanted_location.get()
         )
         self.tracker.add_wanted_item(item)
-        self.wanted_tree.insert('', 'end', values=(item.name, item.category, item.quantity, item.price, item.image_path, item.year, item.location))
+        self.wanted_tree.insert('', 'end', values=(item.name, item.category, item.quantity, item.price, item.image_path, item.year))
 
     def remove_wanted_item(self):
         selected_item = self.wanted_tree.selection()[0]
@@ -230,7 +305,7 @@ class CollectionApp:
         selected_item = self.wanted_tree.selection()[0]
         item_name = self.wanted_tree.item(selected_item, 'values')[0]
         new_price = self.tracker.update_wanted_item_price(item_name)
-        self.wanted_tree.item(selected_item, values=(item_name, self.wanted_category.get(), self.wanted_quantity.get(), new_price, self.wanted_image_path.get(), self.wanted_year.get(), self.wanted_location.get()))
+        self.wanted_tree.item(selected_item, values=(item_name, self.wanted_category.get(), self.wanted_quantity.get(), new_price, self.wanted_image_path.get(), self.wanted_year.get()))
 
     def add_sell_item(self):
         item = CollectionItem(

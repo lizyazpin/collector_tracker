@@ -66,17 +66,17 @@ class CollectionTracker:
         self.conn.commit()
 
     def get_inventory(self):
-        self.cur.execute("SELECT name, category, quantity, price, image_path, year, location FROM inventory")
+        self.cur.execute("SELECT name, category, quantity, price, image_path, year, location FROM inventory ORDER BY category, year ASC, name")
         rows = self.cur.fetchall()
         return [CollectionItem(*row) for row in rows]
 
     def add_wanted_item(self, item):
         self.cur.execute(
             """
-            INSERT INTO wanted_items (name, category, quantity, price, image_path, year, location)
+            INSERT INTO wanted_items (name, category, quantity, price, image_path, year)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             """,
-            (item.name, item.category, item.quantity, item.price, item.image_path, item.year, item.location)
+            (item.name, item.category, item.quantity, item.price, item.image_path, item.year)
         )
         self.conn.commit()
 
@@ -85,7 +85,7 @@ class CollectionTracker:
         self.conn.commit()
 
     def get_wanted_items(self):
-        self.cur.execute("SELECT name, category, quantity, price, image_path, year, location FROM wanted")
+        self.cur.execute("SELECT name, category, quantity, price, image_path, year FROM wanted")
         rows = self.cur.fetchall()
         return [CollectionItem(*row) for row in rows]
 
@@ -125,3 +125,10 @@ class CollectionTracker:
     def update_sell_item_price(self, item_name, new_price):
         self.cur.execute("UPDATE sell_items SET price = %s WHERE name = %s", (new_price, item_name))
         self.conn.commit()
+    
+    def close(self):
+        """Closes the database connection."""
+        if self.cur:
+            self.cur.close()
+        if self.conn:
+            self.conn.close()
