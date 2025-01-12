@@ -78,8 +78,43 @@ class CollectionApp:
         """
         canvas_width = event.width
         self.inventory_canvas.itemconfig(self.inventory_frame_id, width=canvas_width)
-
+    
     def load_inventory_with_images(self):
+        for widget in self.inventory_frame.winfo_children():
+            widget.destroy()  # Clear existing items in the inventory display
+
+        items = self.tracker.get_inventory()
+        for index, item in enumerate(items):
+            # Create a frame for each item
+            item_frame = ttk.Frame(self.inventory_frame, borderwidth=2, relief=tk.GROOVE, padding=(9, 9))
+            item_frame.grid(row=index // 13, column=index % 13, padx=9, pady=9)
+
+            # Load image
+            if item.image_path and os.path.exists(item.image_path):
+                img = Image.open(item.image_path).resize((90, 90), Image.Resampling.LANCZOS)
+                photo = ImageTk.PhotoImage(img)
+                self.image_cache[item.image_path] = photo  # Store reference to prevent garbage collection
+                img_label = tk.Label(item_frame, image=photo)
+                img_label.pack()
+            else:
+                # Placeholder image
+                placeholder = Image.new("RGB", (90, 90), color="gray")
+                photo = ImageTk.PhotoImage(placeholder)
+                self.image_cache[f"placeholder_{index}"] = photo
+                img_label = tk.Label(item_frame, image=photo)
+                img_label.pack()
+
+            # Display name and year
+            wrapped_text = "\n".join(textwrap.wrap(item.name, width=15))  # Adjust width as needed
+            name_label = tk.Label(item_frame, text=wrapped_text, font=("Arial", 10, "bold"), justify=tk.CENTER)
+            name_label.pack()
+            year_label = tk.Label(item_frame, text=f"Year: {item.year}", font=("Arial", 10))
+            year_label.pack()            
+
+            # Bind a click event to the item frame
+            item_frame.bind("<Button-1>", lambda event, item=item: self.on_item_click(item))
+
+    def load_inventory_with_images_(self):
         for widget in self.inventory_frame.winfo_children():
             widget.destroy()  # Clear existing items in the inventory display
 
@@ -109,8 +144,69 @@ class CollectionApp:
             wrapped_text = "\n".join(textwrap.wrap(item.name, width=15))  # Adjust width as needed
             tk.Label(item_frame, text=wrapped_text, font=("Arial", 10, "bold"), justify=tk.CENTER).pack()
             tk.Label(item_frame, text=f"Year: {item.year}", font=("Arial", 10)).pack()
+    def on_item_click(self, item):
+        """
+        This method is triggered when an item is clicked. It populates the form with the selected item's data.
+        """
+        self.inventory_name.delete(0, tk.END)
+        self.inventory_name.insert(0, item.name)
+
+        self.inventory_category.delete(0, tk.END)
+        self.inventory_category.insert(0, item.category)
+
+        self.inventory_quantity.delete(0, tk.END)
+        self.inventory_quantity.insert(0, str(item.quantity))
+
+        self.inventory_price.delete(0, tk.END)
+        self.inventory_price.insert(0, str(item.price))
+
+        self.inventory_image_path.delete(0, tk.END)
+        self.inventory_image_path.insert(0, item.image_path)
+
+        self.inventory_year.delete(0, tk.END)
+        self.inventory_year.insert(0, item.year)
+
+        self.inventory_location.delete(0, tk.END)
+        self.inventory_location.insert(0, item.location)
     
     def add_update_inventory_form(self):
+        # Form for adding or updating inventory items
+        self.inventory_form = ttk.Frame(self.inventory_tab)
+        self.inventory_form.pack(fill=tk.X)
+
+        ttk.Label(self.inventory_form, text="Name:").pack(side=tk.LEFT)
+        self.inventory_name = ttk.Entry(self.inventory_form)
+        self.inventory_name.pack(side=tk.LEFT)
+
+        ttk.Label(self.inventory_form, text="Category:").pack(side=tk.LEFT)
+        self.inventory_category = ttk.Entry(self.inventory_form)
+        self.inventory_category.pack(side=tk.LEFT)
+
+        ttk.Label(self.inventory_form, text="Quantity:").pack(side=tk.LEFT)
+        self.inventory_quantity = ttk.Entry(self.inventory_form)
+        self.inventory_quantity.pack(side=tk.LEFT)
+
+        ttk.Label(self.inventory_form, text="Price:").pack(side=tk.LEFT)
+        self.inventory_price = ttk.Entry(self.inventory_form)
+        self.inventory_price.pack(side=tk.LEFT)
+
+        ttk.Label(self.inventory_form, text="Image Path:").pack(side=tk.LEFT)
+        self.inventory_image_path = ttk.Entry(self.inventory_form)
+        self.inventory_image_path.pack(side=tk.LEFT)
+
+        ttk.Label(self.inventory_form, text="Year:").pack(side=tk.LEFT)
+        self.inventory_year = ttk.Entry(self.inventory_form)
+        self.inventory_year.pack(side=tk.LEFT)
+
+        ttk.Label(self.inventory_form, text="Location:").pack(side=tk.LEFT)
+        self.inventory_location = ttk.Entry(self.inventory_form)
+        self.inventory_location.pack(side=tk.LEFT)
+
+        ttk.Button(self.inventory_form, text="Add Item", command=self.add_inventory_item).pack(side=tk.LEFT)
+        ttk.Button(self.inventory_form, text="Remove Item", command=self.remove_inventory_item).pack(side=tk.LEFT)
+        ttk.Button(self.inventory_form, text="Update Item", command=self.update_inventory_item).pack(side=tk.LEFT)
+
+    def add_update_inventory_form_(self):
         # Form for adding or updating inventory items
         self.inventory_form = ttk.Frame(self.inventory_tab)
         self.inventory_form.pack(fill=tk.X)
@@ -262,14 +358,53 @@ class CollectionApp:
         )
         self.tracker.add_item(item)
         self.inventory_tree.insert('', 'end', values=(item.name, item.category, item.quantity, item.price, item.image_path, item.year, item.location))
-
+    
     def remove_inventory_item(self):
+        # Get the selected item name from the form
+        item_name = self.inventory_name.get()
+
+        # Fetch the item from the tracker by name
+        item = self.tracker.get_item_by_name(item_name)
+
+        if item:
+            # Remove the item using the remove_item function
+            self.tracker.remove_item(item)
+
+            # Optionally clear the form fields
+            self.clear_inventory_form()
+
+            # Refresh the inventory list to reflect the removal
+            self.load_inventory_with_images()
+        else:
+            # Handle case where the item is not found
+            print(f"Item '{item_name}' not found.")
+
+    def remove_inventory_item_(self):
         selected_item = self.inventory_tree.selection()[0]
         item_name = self.inventory_tree.item(selected_item, 'values')[0]
         self.tracker.remove_item(item_name)
         self.inventory_tree.delete(selected_item)
 
     def update_inventory_item(self):
+        selected_item = self.inventory_name.get()
+        item = self.tracker.get_item_by_name(selected_item)  # Fetch the item by name from the tracker or database
+
+        # Update the item with new data from the form
+        item.name = self.inventory_name.get()
+        item.category = self.inventory_category.get()
+        item.quantity = int(self.inventory_quantity.get())
+        item.price = float(self.inventory_price.get())
+        item.image_path = self.inventory_image_path.get()
+        item.year = self.inventory_year.get()
+        item.location = self.inventory_location.get()
+
+        # Save the updated item back to the tracker or database
+        self.tracker.update_item(item)
+
+        # Optionally, refresh the displayed inventory
+        self.load_inventory_with_images()
+
+    def update_inventory_item_(self):
         selected_item = self.inventory_tree.selection()[0]
         item_name = self.inventory_tree.item(selected_item, 'values')[0]
         self.tracker.update_item(

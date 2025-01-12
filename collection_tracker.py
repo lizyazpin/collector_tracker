@@ -33,35 +33,60 @@ class CollectionTracker:
         )
         self.conn.commit()
 
-    def remove_item(self, item_name):
+    def remove_item_(self, item_name):
         self.cur.execute("DELETE FROM inventory WHERE name = %s", (item_name,))
         self.conn.commit()
+    
+    def remove_item(self, item):
+        try:
+            # Call remove_item_ to delete the item from the database by name
+            self.remove_item_(item.name)
+            print(f"Item '{item.name}' removed successfully.")
+        except Exception as e:
+            print(f"Error removing item '{item.name}': {e}")
 
-    def update_item(self, item_name, quantity=None, price=None, image_path=None, year=None, location=None):
+    
+    def get_item_by_name(self, name):
+        # Query the database for an item by its name
+        self.cur.execute("SELECT name, category, quantity, price, image_path, year, location FROM inventory WHERE name = %s", (name,))
+        row = self.cur.fetchone()
+
+        # If the item exists, return it as a CollectionItem
+        if row:
+            return CollectionItem(*row)
+        else:
+            return None
+
+    def update_item(self, item):
         query = "UPDATE inventory SET "
         fields = []
         values = []
+        print(f"item {item.name}")
 
-        if quantity is not None:
+        # Check for each field and add it to the query and values list
+        if item.quantity is not None:
             fields.append("quantity = %s")
-            values.append(quantity)
-        if price is not None:
+            values.append(item.quantity)
+        if item.price is not None:
             fields.append("price = %s")
-            values.append(price)
-        if image_path is not None:
+            values.append(item.price)
+        if item.image_path is not None:
             fields.append("image_path = %s")
-            values.append(image_path)
-        if year is not None:
+            values.append(item.image_path)
+        if item.year is not None:
             fields.append("year = %s")
-            values.append(year)
-        if location is not None:
+            values.append(item.year)
+        if item.location is not None:
             fields.append("location = %s")
-            values.append(location)
+            values.append(item.location)
 
+        # Combine the fields and values, then add the WHERE clause
         query += ", ".join(fields)
         query += " WHERE name = %s"
-        values.append(item_name)
+        values.append(item.name)  # Add the item_name at the end to match the WHERE condition
 
+        # Execute the query
+        print(f"query {query}")
         self.cur.execute(query, values)
         self.conn.commit()
 
