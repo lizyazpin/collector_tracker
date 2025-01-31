@@ -23,30 +23,45 @@ class CollectionTracker:
         )
         self.cur = self.conn.cursor()
 
-    def add_item(self, item):
+    def add_item_inventory(self, item):
+        self.cur.execute("SELECT MAX(id) FROM inventory")
+        max_id = self.cur.fetchone()[0]  # Fetch the highest ID value
+        print(max_id)
+
         self.cur.execute(
             """
-            INSERT INTO inventory (name, category, quantity, price, image_path, year, location)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO inventory (id, name, category, quantity, price, image_path, year, location, model, website)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (item.name, item.category, item.quantity, item.price, item.image_path, item.year, item.location)
+            (max_id+1, item.name, item.category, item.quantity, item.price, item.image_path, item.year, item.location, item.model, item.website)
         )
         self.conn.commit()
 
-    def remove_item_(self, item_name):
+    def remove_inventory_item_(self, item_name):
         self.cur.execute("DELETE FROM inventory WHERE name = %s", (item_name,))
         self.conn.commit()
     
-    def remove_item(self, item):
+    def remove_item_inventory(self, item):
         try:
             # Call remove_item_ to delete the item from the database by name
-            self.remove_item_(item.name)
+            self.remove_inventory_item_(item.name)
             print(f"Item '{item.name}' removed successfully.")
         except Exception as e:
             print(f"Error removing item '{item.name}': {e}")
 
-    
-    def get_item_by_name(self, name):
+    def remove_item_wanted(self, item):
+        try:
+            # Call remove_item_ to delete the item from the database by name
+            self.remove_wanted_item_(item.name)
+            print(f"Item '{item.name}' removed successfully.")
+        except Exception as e:
+            print(f"Error removing item '{item.name}': {e}")
+
+    def remove_wanted_item_(self, item_name):
+        self.cur.execute("DELETE FROM wanted WHERE name = %s", (item_name,))
+        self.conn.commit()
+
+    def get_inventory_item_by_name(self, name):
         # Query the database for an item by its name
         self.cur.execute("SELECT name, category, quantity, price, image_path, year, location FROM inventory WHERE name = %s", (name,))
         row = self.cur.fetchone()
@@ -55,6 +70,20 @@ class CollectionTracker:
         if row:
             return CollectionItem(*row)
         else:
+            return None
+
+    def get_wanted_item_by_name(self, name):
+        print(f"Received name {name}")
+        # Query the database for an item by its name
+        query = f"SELECT name, category, quantity, price, image_path, year, model, website FROM public.wanted WHERE name ='{name}'"
+        self.cur.execute(query)
+        row = self.cur.fetchone()
+        print(f"Query {query}")
+        # If the item exists, return it as a CollectionItem
+        if row:
+            return CollectionItem(*row)
+        else:
+            print(row)
             return None
 
     def update_item(self, item):

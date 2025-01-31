@@ -5,7 +5,7 @@ Defines the CollectionItem class to represent items in the collection.
 """
 
 class CollectionItem:
-    def __init__(self, name, category, quantity, price, image_path=None, year=None, location=None):
+    def __init__(self, name, category, quantity, price, image_path=None, year=None, location=None, model=None, website=None):
         """
         Initialize a CollectionItem instance.
 
@@ -22,9 +22,11 @@ class CollectionItem:
         self.image_path = image_path
         self.year = year
         self.location = location
+        self.model = model
+        self.website = website
 
     def __repr__(self):
         """
         Return a string representation of the CollectionItem instance.
         """
-        return f"{self.name} ({self.category}): {self.quantity} @ ${self.price}, Image: {self.image_path or 'None'}, Year: {self.year or 'None'}, Location: {self.location or 'None'}"
+        return f"{self.name} ({self.category}): {self.quantity} @ ${self.price}, Image: {self.image_path or 'None'}, Year: {self.year or 'None'}, Location: {self.location or 'None'}, Model: {self.model or 'None'}, Website: {self.website or 'None'}"
